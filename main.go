@@ -1,18 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
-	"time"
 	"strings"
-	"bufio"
-	"strconv"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -43,7 +41,7 @@ var chatStyle = lipgloss.NewStyle().
 
 var inputStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#39FF14")). // Neon-Grün
-	Background(lipgloss.Color("#000000"))  // Schwarz
+	Background(lipgloss.Color("#000000")). // Schwarz
 	Padding(0, 1)
 
 func askTarget() (string, string) {
@@ -72,14 +70,54 @@ func startP2PConnection(ip string, port string) (*net.Conn, error) {
 	return &conn, nil
 }
 
+type connItem struct {
+	title string
+}
+
+func (i connItem) Title() string       { return i.title }
+func (i connItem) Description() string { return "" }
+func (i connItem) FilterValue() string { return i.title }
+
+// func initialModel() model {
+// 	ip, portStr := askTarget()
+// 	// port, _ := strconv.Atoi(portStr) // Removed unused variable
+
+// 	// Sidebar Liste
+// 	items := []list.Item{}
+// 	sidebar := list.New(items, list.NewDefaultDelegate(), 20, 10)
+// 	sidebar.Title = "Verbindungen"
+
+// 	// Eingabefeld
+// 	ti := textinput.New()
+// 	ti.Placeholder = "Nachricht eingeben..."
+// 	ti.Focus()
+// 	ti.CharLimit = 256
+// 	ti.Width = 50
+
+// 	// Chat-Viewport
+// 	cv := viewport.New(50, 15)
+// 	cv.SetContent("Willkommen zum P2P-Chat!\n")
+
+// 	sidebar.InsertItem(0, connItem{title: fmt.Sprintf("%s:%s", ip, portStr)})
+
+//		return model{
+//			connections: []ConnectionInfo{},
+//			selected:    0,
+//			chat:        []string{},
+//			input:       ti,
+//			chatView:    cv,
+//			sidebar:     sidebar,
+//			currentConn: nil, // Initialize to nil
+//		}
+//	}
 func initialModel() model {
 	ip, portStr := askTarget()
-	port, _ := strconv.Atoi(portStr)
 
 	// Sidebar Liste
 	items := []list.Item{}
 	sidebar := list.New(items, list.NewDefaultDelegate(), 20, 10)
 	sidebar.Title = "Verbindungen"
+	sidebar.InsertItem(0, connItem{title: fmt.Sprintf("%s:%s", ip, portStr)})
 
 	// Eingabefeld
 	ti := textinput.New()
@@ -92,15 +130,18 @@ func initialModel() model {
 	cv := viewport.New(50, 15)
 	cv.SetContent("Willkommen zum P2P-Chat!\n")
 
+	// TCP-Verbindung herstellen
 	conn, err := startP2PConnection(ip, portStr)
 	var currentConn *ConnectionInfo
-	if err == nil {
+	if err != nil {
+		fmt.Println("Fehler beim Verbinden:", err)
+		currentConn = nil
+	} else {
 		currentConn = &ConnectionInfo{
 			IP:   ip,
-			Port: port,
+			Port: 0, // Optional: portStr in int konvertieren
 			Conn: *conn,
 		}
-		sidebar.InsertItem(0, list.NewItem(fmt.Sprintf("%s:%s", ip, portStr), "", 0, nil))
 	}
 
 	return model{
@@ -148,9 +189,10 @@ func (m model) View() string {
 	sidebarView := m.sidebar.View()
 	chatView := chatStyle.Render(m.chatView.View())
 	inputView := inputStyle.Render(m.input.View())
-	return lipgloss.JoinHorizontal(lipgloss.Top,
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
 		sidebarView,
-		lipgloss.JoinVertical(lipgloss.Top, chatView, inputView),
+		lipgloss.JoinVertical(lipgloss.Left, chatView, inputView),
 	)
 }
 
